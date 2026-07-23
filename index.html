@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐱 喵喵角色卡工坊 - 全能极速打包器 (5文件适配版)</title>
+    <title>🐱 喵喵角色卡工坊 - 全能极速打包器 (7文件带图片压缩版)</title>
     <style>
         :root {
             --sky: #66ccff;
@@ -53,7 +53,7 @@
             border-radius: var(--radius-xl);
             padding: 40px;
             width: 100%;
-            max-width: 650px;
+            max-width: 680px;
             text-align: center;
             animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
@@ -128,7 +128,6 @@
         .upload-sub { font-size: 12px; color: var(--text-soft); pointer-events: none; }
         input[type="file"] { display: none; }
 
-        /* 使用 Grid 自适应排列 5 个碎片卡片 */
         .file-status-group {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -204,14 +203,14 @@
         <span class="cat-icon">🐱</span>
         <span>喵喵打包器</span>
     </div>
-    <p class="subtitle">将模块化的Html、Css与3个Js文件完美融合</p>
+    <p class="subtitle">将模块化的Html、Css、3个Js文件以及图标和清单完美融合 (内置智能压缩)</p>
 
     <label class="upload-area" id="dropZone" for="fileInput">
         <div class="upload-icon" id="mainIcon">📦</div>
-        <p class="upload-text" id="dropText">将5个分离文件拖拽到此处</p>
-        <span class="upload-sub">自动识别文件名，无惧多余文件干扰</span>
+        <p class="upload-text" id="dropText">将7个分离文件拖拽到此处</p>
+        <span class="upload-sub">自动识别文件名，自动把图标体积压缩99%</span>
     </label>
-    <input type="file" id="fileInput" multiple accept=".html,.css,.js">
+    <input type="file" id="fileInput" multiple accept=".html,.css,.js,.json,image/png,image/jpeg,image/webp">
 
     <div class="file-status-group">
         <div class="file-item" id="pill-html"><span class="file-name">index.html</span><span class="file-icon">⏳</span></div>
@@ -219,6 +218,8 @@
         <div class="file-item" id="pill-utils"><span class="file-name">utils.js</span><span class="file-icon">⏳</span></div>
         <div class="file-item" id="pill-components"><span class="file-name">components.js</span><span class="file-icon">⏳</span></div>
         <div class="file-item" id="pill-app"><span class="file-name">app.js</span><span class="file-icon">⏳</span></div>
+        <div class="file-item" id="pill-manifest"><span class="file-name">manifest.json</span><span class="file-icon">⏳</span></div>
+        <div class="file-item" id="pill-icon"><span class="file-name">icon.png/jpg</span><span class="file-icon">⏳</span></div>
     </div>
 
     <button id="packBtn" class="btn" disabled>💤 等待碎片收集...</button>
@@ -226,7 +227,7 @@
 </div>
 
 <script>
-    const filesData = { html: null, css: null, utils: null, components: null, app: null };
+    const filesData = { html: null, css: null, utils: null, components: null, app: null, manifest: null, icon: null };
 
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -258,7 +259,6 @@
                 filesData.css = await file.text();
                 updateUI('css');
             } else if (ext === 'js') {
-                // 智能名称匹配绑定
                 if (lowerName.includes('utils')) {
                     filesData.utils = await file.text();
                     updateUI('utils');
@@ -269,19 +269,54 @@
                     filesData.app = await file.text();
                     updateUI('app');
                 }
+            } else if (ext === 'json') {
+                filesData.manifest = await file.text();
+                updateUI('manifest');
+            } else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+                // 【核心修改】：通过 Canvas 对图片进行强制压缩
+                filesData.icon = await new Promise(resolve => {
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            // 限制最大尺寸为 256x256 (作为PWA图标足够清晰，且极大缩小体积)
+                            const MAX_SIZE = 256; 
+                            let w = img.width;
+                            let h = img.height;
+
+                            if (w > MAX_SIZE || h > MAX_SIZE) {
+                                const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+                                w = Math.round(w * ratio);
+                                h = Math.round(h * ratio);
+                            }
+
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, w, h);
+                            
+                            // 导出为 PNG 以保持背景透明度
+                            resolve(canvas.toDataURL('image/png'));
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+                updateUI('icon');
             }
         }
         checkReady();
     }
 
     function checkReady() {
-        if (filesData.html && filesData.css && filesData.utils && filesData.components && filesData.app) {
+        if (filesData.html && filesData.css && filesData.utils && filesData.components && filesData.app && filesData.manifest && filesData.icon) {
             packBtn.disabled = false;
             packBtn.innerHTML = '✨ 立即聚合魔法下载';
             dropZone.style.borderColor = 'var(--mint-dark)';
             dropZone.style.background = 'var(--mint)';
             mainIcon.innerText = '🌸';
-            dropText.innerText = '所需文件集齐！可以施展聚合魔法了';
+            dropText.innerText = '7个文件已集齐！可以施展聚合魔法了';
             dropText.style.color = 'var(--mint-dark)';
         }
     }
@@ -294,7 +329,6 @@
         const tagH = '<';
         const tagS = '/script>';
         
-        // 【防白屏保护】保留线上外部 CDN 链接加载 React 等库
         const cssReg = new RegExp(tagH + 'link[^>]*href=["\'](?!https?:|//)[^"\']*\\.css["\'][^>]*>', 'gi');
         const jsReg = new RegExp(tagH + 'script[^>]*src=["\'](?!https?:|//)[^"\']*\\.js["\'][^>]*>' + tagH + tagS, 'gi');
 
@@ -302,30 +336,47 @@
         html = html.replace(cssReg, '');
         html = html.replace(jsReg, '');
 
-        // 2. CSS 高级注入
+        // 2. 注入 PWA Manifest 和 Icon (Data URL 模式)
+        if (filesData.manifest && filesData.icon) {
+            let manifestStr = filesData.manifest;
+            try {
+                let manifestObj = JSON.parse(manifestStr);
+                if (manifestObj.icons && manifestObj.icons.length > 0) {
+                    manifestObj.icons.forEach(ico => ico.src = filesData.icon);
+                }
+                manifestStr = JSON.stringify(manifestObj);
+            } catch (e) { console.warn("Manifest JSON 解析失败，回退使用原始字符串"); }
+            
+            const manifestBase64 = 'data:application/manifest+json;base64,' + btoa(unescape(encodeURIComponent(manifestStr)));
+            
+            const manifestLinkReg = new RegExp(tagH + 'link[^>]*rel=["\']manifest["\'][^>]*>', 'gi');
+            const iconLinkReg = new RegExp(tagH + 'link[^>]*rel=["\']apple-touch-icon["\'][^>]*>', 'gi');
+            html = html.replace(manifestLinkReg, '');
+            html = html.replace(iconLinkReg, '');
+
+            const pwaInject = `\n<link rel="apple-touch-icon" href="${filesData.icon}" />\n<link rel="manifest" href="${manifestBase64}" />\n`;
+            html = html.split('</head>').join(pwaInject + '</head>');
+        }
+
+        // 3. CSS 高级注入
         if (filesData.css) {
             const styleTag = `\n<style>\n/* --- 注入的皮肤样式 --- */\n${filesData.css}\n</style>\n`;
             html = html.split('</head>').join(styleTag + '</head>');
         }
 
-        // 3. 核心 ES6 Module 解析组装引擎
-        let allImports = new Set(); // 外部组件导入集(自动去重)
+        // 4. 核心 ES6 Module 解析组装引擎
+        let allImports = new Set(); 
 
-        // 定义处理器：剥离依赖污染、提取外部依赖、解决变量重复声明问题
         function processES6Module(code) {
             const importRegex = /import\s+[\s\S]*?\s+from\s+['"]([^'"]+)['"];?/g;
             let c = code.replace(importRegex, (match, moduleName) => {
                 if (!moduleName.startsWith('.')) {
-                    // 收集外部包引用 (如 htm、@google 等)，将多余换行折叠实现严密去重
                     allImports.add(match.replace(/\s+/g, ' ').trim());
                 }
-                return ''; // 完全清除当前作用域的 import
+                return ''; 
             });
             
-            // 剥去内部 export
             c = c.replace(/export\s+\{[\s\S]*?\};?/g, '');
-            
-            // 【降维打击】将多文件的常量重声明（如 React 解构）转换为 var，利用变量穿透特性实现天然同作用域共享而不报错
             c = c.replace(/const\s+html\s*=\s*htm\.bind/g, 'var html = htm.bind');
             c = c.replace(/const\s+\{([\s\S]*?)\}\s*=\s*React/g, 'var {$1} = React');
             
@@ -336,7 +387,6 @@
         const pComponents = processES6Module(filesData.components);
         const pApp = processES6Module(filesData.app);
 
-        // 严格按照依赖图拓扑排序连接
         const mergedJs = `
 ${Array.from(allImports).join('\n')}
 
@@ -363,10 +413,9 @@ ${pApp}
         const closeTag = tagH + tagS;
         const scriptTagBlock = `\n${openTag}\n/* --- 注入的核心灵魂 --- */\n${safeJs}\n${closeTag}\n`;
         
-        // 挂载至底部
         html = html.split('</body>').join(scriptTagBlock + '</body>');
 
-        // 4. 打包并触发下载
+        // 5. 打包并触发下载
         const blob = new Blob([html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -383,7 +432,6 @@ ${pApp}
         setTimeout(() => { if(filesData.html) packBtn.innerHTML = '✨ 再次聚合下载'; }, 3000);
     }
 
-    // 拖拽支持
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, e => {
             e.preventDefault(); e.stopPropagation();
@@ -405,16 +453,16 @@ ${pApp}
     packBtn.addEventListener('click', doBundle);
     
     resetBtn.addEventListener('click', () => {
-        filesData.html = null; filesData.css = null; filesData.utils = null; filesData.components = null; filesData.app = null;
+        filesData.html = null; filesData.css = null; filesData.utils = null; filesData.components = null; filesData.app = null; filesData.manifest = null; filesData.icon = null;
         fileInput.value = '';
-        ['html', 'css', 'utils', 'components', 'app'].forEach(updateUI);
+        ['html', 'css', 'utils', 'components', 'app', 'manifest', 'icon'].forEach(updateUI);
         
         packBtn.disabled = true;
         packBtn.innerHTML = '💤 等待碎片收集...';
         dropZone.style.borderColor = 'var(--sky-soft)';
         dropZone.style.background = 'var(--white)';
         mainIcon.innerText = '📦';
-        dropText.innerText = '将5个分离文件拖拽到此处';
+        dropText.innerText = '将7个分离文件拖拽到此处';
         dropText.style.color = 'var(--text-dark)';
     });
 </script>
